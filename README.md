@@ -2,7 +2,7 @@
 
 🚀 🖱️ **[點此線上體驗「半導體試產良率分析系統」](https://semiconductor-pilot-yield-analysis-heufbdujzft4xyjdb4zcul.streamlit.app/)**
 
-> **💡 Demo 系統載入說明**：本系統採用 Streamlit 雲端部署。若首次開啟遇到系統休眠提示，請點選 **「Yes, get this app back up!」**，系統將於數十秒內完成資源喚醒並載入。
+> **💡 系統載入說明**：本系統採用 Streamlit 雲端部署。若首次開啟遇到系統休眠提示，請點選 **「Yes, get this app back up!」**，系統將於數十秒內完成資源喚醒並載入。
 
 ## 📝 專案簡介
 本專案專為半導體試產階段（Pilot Run）設計，打造互動分析 Data App。系統將複雜的製程數據進行自動化清洗與統計運算流程；導入 SPC 管制規則進行統計變異監控，結合 Box Plot 與無母數統計檢定科學化評估機台機差，並透過全子集合迴歸模型提供科學化的指標數據，輔助工程師篩選關鍵影響因子並進行決策，大幅縮短異常排查的決策時間。
