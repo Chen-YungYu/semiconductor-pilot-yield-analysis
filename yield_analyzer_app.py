@@ -17,13 +17,14 @@ from statsmodels.formula.api import ols
 import statsmodels.stats.anova as anova 
 import itertools 
 
-#圖片使用視窗開啟
-#%matplotlib qt   
+import plotly.graph_objects as go  #要增加圖片的互動體驗
+#import plotly.io as pio  #設定互動圖片在網頁打開，程式設計除錯用
+#pio.renderers.default = 'browser'
+  
 
 #解決圖片亂碼問題，Windows使用微軟正黑體、Linux系統使用思源黑體
-#plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'Noto Sans CJK TC', 'DejaVu Sans']  
-#plt.rcParams['axes.unicode_minus'] = False
-#交由同目錄下的matplotlibrc設定檔控管
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'Noto Sans CJK TC', 'DejaVu Sans']  
+plt.rcParams['axes.unicode_minus'] = False
 
 
 #讀取模擬半導體機台製程良率資料.csv，設定index為LotID
@@ -41,11 +42,12 @@ all_x=[i for i in list(process_raw_data.columns) if i not in ["Machine","Defect"
 #設定因變數
 rv="Yield"
 
-#網頁設定
-st.set_page_config(
-    page_title="半導體製程Pilot Run Test",
-    layout="wide"
-    )
+#切換圖表繪圖後端用，有"Matplotlib" 與 "Plotly"
+set_plot_backend="Plotly"
+
+
+#網頁主題設定
+st.set_page_config(page_title="半導體製程Pilot Run Test",layout="wide")
 
 
 #=======================控制面板========================
@@ -56,7 +58,7 @@ with st.sidebar:
     st.subheader("I-MR Chart 控制功能")
     st.write("SPC Rule")
     rule1_chk=st.checkbox("OOC")
-    rule2_chk=st.checkbox("連續六點向上(向下")
+    rule2_chk=st.checkbox("連續六點向上(向下)")
     rule3_chk=st.checkbox("連續九點在單邊")
     
     #製程參數 I-MR Chart控制功能
@@ -73,13 +75,15 @@ class I_mr_chart():
     2.物件具有監控ooc_rule、six_point_trend_rule和night_point_rule的三個方法
     3.例的屬性fig_i_mr_chart可以產生I-MR Char圖表
     4.d2防偏因子，設定組內數目為2 
+    5.具有圖表繪圖後端切換功能，可使用物件參數切換"Matplotlib"或"Plotly"，以提升使用者互動性
     """
-    def __init__(self,groups,selected_m_name,rv):       
+    def __init__(self,groups,selected_m_name,rv,set_plot_backend):       
         d2=1.128  #d2防偏因子，設定組內數目為2    
         
-        self.groups=groups
-        self.selected_m_name=selected_m_name
-        self.rv=rv
+        self.groups=groups    
+        self.selected_m_name=selected_m_name  
+        self.rv=rv      
+        self.set_plot_backend=set_plot_backend   #圖表繪圖後端切換功能
                 
         #計算CL
         m_yield_mean=groups[rv].mean()
@@ -106,45 +110,78 @@ class I_mr_chart():
         else:
             pass
     
-        #畫出I-MR Chart
+        #畫出I-MR Chart 
         self.i_mr_chart_data=pd.DataFrame({self.rv:groups.get_group(self.selected_m_name)[self.rv],
                                            "UCL":self.ucl,
                                            "CL":cl,
                                            "LCL":self.lcl}
-                                          )              
-    
-        self.fig_i_mr_chart,self.ax=plt.subplots()
-        self.ax.set_title(f"Machine {self.selected_m_name} {self.rv} ： I-MR Chart")
-        self.ax.plot(self.i_mr_chart_data[self.rv], label=self.rv, color="blue",marker="s")
-        self.ax.plot(self.i_mr_chart_data["UCL"], label="UCL", color="orange")
-        self.ax.plot(self.i_mr_chart_data["CL"], label="CL", color="green")
-        self.ax.plot(self.i_mr_chart_data["LCL"], label="LCL", color="orange")
-        self.ax.set_xticklabels(self.i_mr_chart_data.index,rotation=-90)
+                                          )         #將畫I-MR Chart需要的資料整理成df     
+       
+        if  self.set_plot_backend=="Matplotlib":       #切換圖表繪圖後端的功能
+            self.fig_i_mr_chart,self.ax=plt.subplots()
+            self.ax.set_title(f"Machine {self.selected_m_name} {self.rv} ： I-MR Chart")     #標題設定
+            
+            self.ax.plot(self.i_mr_chart_data[self.rv], label=self.rv, color="blue",marker="s")   #顏色:標準藍
+            self.ax.plot(self.i_mr_chart_data["UCL"], label="UCL", color="#F57C00",linestyle="--")      #顏色：中度亮橘色
+            self.ax.plot(self.i_mr_chart_data["CL"], label="CL", color="#16A34A")        #顏色：活力正綠色
+            self.ax.plot(self.i_mr_chart_data["LCL"], label="LCL", color="#F57C00",linestyle="--")      #顏色：中度亮橘色
+            self.ax.tick_params(axis="x",labelrotation=-90)     #X軸標籤順時鐘轉90度
+            
+            self.ax.legend(fontsize="small",loc="best")  #顯示圖例 
         
-        self.ax.legend(fontsize="small",loc="best")  #顯示圖例 
-        
-        #制作一個OOC表單作為實例的屬性，供下面三個方法使用
+        else:   #圖表繪圖後端設定為Plotly
+            self.fig_i_mr_chart=go.Figure()
+            self.fig_i_mr_chart.update_layout(template="plotly_dark") #圖片主題設定
+            self.fig_i_mr_chart.update_layout(margin=dict(t=30,b=10,l=10,r=10)) #調整繪圖區大小
+            self.fig_i_mr_chart.update_layout(xaxis=dict(showline=True,mirror=True,linewidth=1,linecolor="#808080"), #繪圖區邊框，顏色：正灰色
+                                              yaxis=dict(showline=True,mirror=True,linewidth=1,linecolor="#808080"),
+                                              )
+            self.fig_i_mr_chart.update_layout(xaxis=dict(ticks="outside",tickwidth=1,tickcolor="#808080"), #設定刻度線，顏色：正灰色
+                                              yaxis=dict(ticks="outside",tickwidth=1,tickcolor="#808080")
+                                              )  
+            self.fig_i_mr_chart.update_layout(title=dict(text=f"Machine {self.selected_m_name} {self.rv} ： I-MR Chart",x=0.5,y=1.0,xanchor="center",yanchor="top",pad=dict(t=0,b=0,l=0,r=0))) #標題設定
+            self.fig_i_mr_chart.update_layout(legend=dict(orientation="h",xanchor="left",x=0,y=-0.15,font=dict(size=9),itemwidth=30,tracegroupgap=0)) #設定圖例
+            self.fig_i_mr_chart.update_layout(font=dict(family="Microsoft JhengHei")) #設定字型
+            
+            
+            
+            self.fig_i_mr_chart.add_scatter(x=self.i_mr_chart_data.index,y=self.i_mr_chart_data[self.rv],mode='lines+markers',name=self.rv,line=dict(color="#3B82F6",dash="solid"),marker=dict(size=9,symbol="square"))  #顏色:標準藍
+            self.fig_i_mr_chart.add_scatter(x=self.i_mr_chart_data.index,y=self.i_mr_chart_data["UCL"],mode='lines',name="UCL",line=dict(color="#F57C00",dash="dash"))   #顏色：中度亮橘色
+            self.fig_i_mr_chart.add_scatter(x=self.i_mr_chart_data.index,y=self.i_mr_chart_data["CL"],mode='lines',name="CL",line=dict(color="#16A34A",dash="solid"))     #顏色：活力正綠色
+            self.fig_i_mr_chart.add_scatter(x=self.i_mr_chart_data.index,y=self.i_mr_chart_data["LCL"],mode='lines',name="LCL",line=dict(color="#F57C00",dash="dash"))  #顏色：中度亮橘色
+            
+            self.fig_i_mr_chart.update_xaxes(tickangle=90)  #X軸標籤順時鐘轉90度
+            
+                       
+        #制作一個OOC的DataFrame表單作為實例的屬性，供下面三個方法使用
         self.ooc=self.i_mr_chart_data.copy()      
 
     #檢查是否有Out of Control limit的點，並在圖表標上紅色
     def ooc_rule(self):
         """
-        檢查是否有Out of Control limit的點，並在圖表標上紅色 
+        1.檢查是否有Out of Control limit的點，並在圖表標上紅色 
+        2.具有圖表繪圖後端切換功能
         """
         
         normal_condition=(self.ooc[self.rv]<=self.ucl) & (self.ooc[self.rv]>=self.lcl)  #control limit內的規則
         self.ooc.loc[:,"OOC"]=self.ooc.loc[:,self.rv]
         self.ooc.loc[normal_condition,"OOC"]=np.nan  #滿足control limit的點其值改成nan
-        self.ax.plot(self.ooc["OOC"],label="OOC",linestyle="",color="red",marker="s")  #標上OOC點
         
-        self.ax.legend(fontsize="small",loc="best")  #顯示圖例 
-        
+        if  self.set_plot_backend=="Matplotlib":       #切換圖表繪圖後端
+            self.ax.plot(self.ooc["OOC"],label="OOC",linestyle="",color="#EF4444",marker="s")  #標上OOC點，顏色：警示紅
+            
+            self.ax.legend(fontsize="small",loc="best")  #顯示圖例 
+            
+        else:   #圖表繪圖後端設定為Plotly
+            self.fig_i_mr_chart.add_scatter(x=self.ooc.index,y=self.ooc["OOC"],mode='markers',name="OOC",marker=dict(size=9,color="#EF4444",symbol="square"))  #顏色：警示紅
+                
         return None
         
     #檢查是否有連續六點上升(下降)，並在圖表標上紅色(所有點都標)
     def six_point_trend_rule(self):    
         """
-        檢查是否有連續六點上升(下降)，並在圖表標上紅色(所有點都標)
+        1.檢查是否有連續六點上升(下降)，並在圖表標上紅色(所有點都標)
+        2.具有圖表繪圖後端切換功能
         """
         self.ooc["第i項-第i-1項"]=self.ooc[self.rv]-self.ooc[self.rv].shift(1)     #檢查區間是否有連續上升(下降)用
         for x in ["六點上升","六點下降"]:
@@ -159,19 +196,27 @@ class I_mr_chart():
             temp.loc[temp==True]=self.ooc.loc[temp==True,self.rv]    #將異常點的Yield填入
             self.ooc[x]=temp     #將第6個上升(下降)點納入OOC表單
             
-            if x!="六點下降":    #圖例只顯示一個
-                self.ax.plot(self.ooc[x],linestyle="",color="red",marker="s")  #標上連續六點上升(下降)的點
-            else:
-                self.ax.plot(self.ooc[x],label="6-Point Trend Rule",linestyle="",color="red",marker="s")  #標上連續六點上升(下降)的點
-            
-            self.ax.legend(fontsize="small",loc="best")  #顯示圖例
-
+            if  self.set_plot_backend=="Matplotlib":       #切換圖表繪圖後端
+                if x!="六點下降":    #只讓圖例只顯示一個
+                    self.ax.plot(self.ooc[x],linestyle="",color="#95A5A6",marker="s")  #標上連續六點上升(下降)的點，不顯示圖例，顏色：混泥土色
+                else:
+                    self.ax.plot(self.ooc[x],label="6pts Trend",linestyle="",color="#95A5A6",marker="s")  #標上連續六點上升(下降)的點，顏色：混泥土色
+                
+                self.ax.legend(fontsize="small",loc="best")  #顯示圖例
+                
+            else: #圖表繪圖後端設定為Plotly
+                if x!="六點下降":    #只讓圖例只顯示一個
+                    self.fig_i_mr_chart.add_scatter(x=self.ooc.index,y=self.ooc[x],mode='markers',name="6pts Trend",marker=dict(size=9,color="#95A5A6",symbol="square"),showlegend=False) #標上連續六點上升(下降)的點，不顯示圖例，顏色：混泥土色
+                else:
+                    self.fig_i_mr_chart.add_scatter(x=self.ooc.index,y=self.ooc[x],mode='markers',name="6pts Trend",marker=dict(size=9,color="#95A5A6",symbol="square"))  #標上連續六點上升(下降)的點，顏色：混泥土色
+                
         return None
     
     #檢查是否有連續9點在上邊(下邊)，並在圖表標上紅色(所有點都標)
     def night_point_rule(self):
         """
-        檢查是否有連續9點在上邊(下邊)，並在圖表標上紅色(所有點都標)
+        1.檢查是否有連續9點在上邊(下邊)，並在圖表標上紅色(所有點都標)
+        2.具有圖表繪圖後端切換功能
         """
         self.ooc["第i項-CL"]=self.ooc[self.rv]-self.ooc["CL"]    #確認是否在單邊用，正數為上邊，負數為下邊連續上升(下降)用
         for x in ["連續9點在上邊","連續9點在下邊"]:
@@ -186,34 +231,62 @@ class I_mr_chart():
             temp.loc[temp==True]=self.ooc.loc[temp==True,self.rv]    #將異常點的Yield填入
             self.ooc[x]=temp    #將連續9點在上邊(下邊)的點納入OOC表單
             
-            if x!="連續9點在下邊":    #圖例只顯示一個
-                self.ax.plot(self.ooc[x],linestyle="",color="red",marker=".")  #標上連續9點在上邊(下邊)的點
-            else:    
-                self.ax.plot(self.ooc[x],label="9-Point Rule(One Side)",linestyle="",color="red",marker=".")  #標上連續9點在上邊(下邊)的點
+            if  self.set_plot_backend=="Matplotlib":       #切換圖表繪圖後端            
+                if x!="連續9點在下邊":    #圖例只顯示一個
+                    self.ax.plot(self.ooc[x],linestyle="",color="#EF4444",marker=".")  #標上連續9點在上邊(下邊)的點，顏色：警示紅
+                else:    
+                    self.ax.plot(self.ooc[x],label="9pts One-side",linestyle="",color="#EF4444",marker=".")  #標上連續9點在上邊(下邊)的點，顏色：警示紅
+                
+                self.ax.legend(fontsize="small",loc="best")  #顯示圖例 
             
-            self.ax.legend(fontsize="small",loc="best")  #顯示圖例 
-
+            else:  #圖表繪圖後端設定為Plotly
+                if x!="連續9點在下邊":    #只讓圖例只顯示一個
+                    self.fig_i_mr_chart.add_scatter(x=self.ooc.index,y=self.ooc[x],mode='markers',name="9pts One-side",marker=dict(color="#EF4444",symbol="x"),showlegend=False) #標上連續9點在上邊(下邊)的點，不顯示圖例，顏色：警示紅
+                else:
+                    self.fig_i_mr_chart.add_scatter(x=self.ooc.index,y=self.ooc[x],mode='markers',name="9pts One-side",marker=dict(color="#EF4444",symbol="x"))  #標上連續9點在上邊(下邊)的點，顏色：警示紅               
+  
         return None
-    
 
 
 #畫出所有機台的Boxplot
-def boxplot_chart(groups):
+def boxplot_chart(process_raw_data,set_plot_backend):
     """
-    畫出所有機台的Boxplot
+    1.畫出所有機台的Boxplot
+    2.具有圖表繪圖後端切換功能
     """
-    #使用字典儲存所有機台Yield分組資料，供Boxplot使用
-    m_yield_data={}     
-    for x in all_m_name:
-        m_yield_data[x]=groups.get_group(x)["Yield"] 
         
-    fig_boxplot,ax=plt.subplots()
-    ax.boxplot(m_yield_data.values(),
-               labels=["機台"+x for x in all_m_name]
-               )
-    
+    if  set_plot_backend=="Matplotlib":       #切換圖表繪圖後端   
+        m_yield_data={}      #使用字典儲存所有機台Yield分組資料，供Matplotlib Boxplot使用
+        for x in all_m_name:
+            m_yield_data[x]=process_raw_data.groupby("Machine").get_group(x)["Yield"] 
+            
+        fig_boxplot,ax=plt.subplots()
+        ax.boxplot(m_yield_data.values(),
+                   labels=["機台"+x for x in all_m_name]
+                   )
+        
+    else:       #圖表繪圖後端設定為Plotly
+        m_yield_data=process_raw_data[["Machine","Yield"]]   #使用DataFrame儲存所有機台Yield分組資料，供Plotly Boxplot使用
+        m_yield_data["Machine"]= "機台" + m_yield_data["Machine"].astype(str) #Machine欄位所有元素加上機台兩字
+        
+        fig_boxplot=go.Figure()
+        fig_boxplot.update_layout(template='simple_white')  #圖片主題設定
+        fig_boxplot.update_layout(margin=dict(t=10,b=10,l=10,r=10)) #調整繪圖區大小
+        fig_boxplot.update_layout(xaxis=dict(showline=True,mirror=True,linewidth=1,linecolor="#808080"), #繪圖區邊框，顏色：正灰色
+                                  yaxis=dict(showline=True,mirror=True,linewidth=1,linecolor="#808080"),  
+                                  )
+        fig_boxplot.update_layout(xaxis=dict(ticks="outside",tickwidth=1,tickcolor="#808080"),   #設定刻度線，顏色：正灰色
+                                  yaxis=dict(ticks="outside",tickwidth=1,tickcolor="#808080")
+                                  )  
+        fig_boxplot.update_layout(font=dict(family="Microsoft JhengHei")) #設定字型
+        fig_boxplot.add_box(x=m_yield_data["Machine"],y=m_yield_data["Yield"],boxpoints="outliers",boxmean=True, 
+                            marker=dict(color="#EF4444",size=10),   #Outliers：設定警示紅
+                            line=dict(color="#3B82F6", width=2),    #箱體外框：經典科技藍
+                            fillcolor="rgba(59, 130, 246, 0.2)",     #具有80%透明感的經典科技藍  
+                            width=0.5)       #箱子佔自己的格子50%
+        
     return fig_boxplot
-
+#%%
 
 #計算各機台的統計量：平均、標準差、上界、下界。主畫面中間顯示用
 def m_yield_stats(groups):
@@ -311,9 +384,6 @@ def machine_comparison(process_raw_data,groups,all_m_name):
     return m_comparison_result
 
 
-
-
-
 #判斷機台那台最穩定與最不穩定
 def stabiliy_assessment(groups):
     """
@@ -336,7 +406,6 @@ def stabiliy_assessment(groups):
     m_stabiliy["最不穩定機台"]=f"🔴機台{max_cv}最不穩定：CV={max_cv_value:.2f}%"
 
     return m_stabiliy      
-
 
 
 
@@ -416,46 +485,65 @@ with top_r_col:
     for i,tab in enumerate(tabs):   #每一個頁籤的內容
    
        with tab:     
-        imr_chart=I_mr_chart(groups,all_m_name[i],rv)  #監控Yield的I-MR Chart
+        imr_chart=I_mr_chart(groups,all_m_name[i],rv,set_plot_backend)  #監控Yield的I-MR Chart
         if rule1_chk:
             imr_chart.ooc_rule()
         if rule2_chk:
             imr_chart.six_point_trend_rule()
         if rule3_chk:
             imr_chart.night_point_rule()
-           
-        st.pyplot(imr_chart.fig_i_mr_chart)    #強制滿版鎖定寬度    
+        
+        if  set_plot_backend=="Matplotlib":       #切換圖表繪圖後端    
+            st.pyplot(imr_chart.fig_i_mr_chart)    
+            
+        else:           #圖表繪圖後端設定為Plotly
+            with st.container(border=True):     
+                st.plotly_chart(imr_chart.fig_i_mr_chart,use_container_width=True) 
 
 with top_l_col:            
     st.markdown("<h3>&nbsp;</h3>", unsafe_allow_html=True)  #保留高度用
 
     tabs=st.tabs(all_m_name)    #動態生成頁籤
     for i,tab in enumerate(tabs):   #每一個頁籤的內容
-   
-       with tab:     
-        imr_chart=I_mr_chart(groups,all_m_name[i],selected_rv)  #監控Yield的I-MR Chart
-        if rule1_chk:
-            imr_chart.ooc_rule()
-        if rule2_chk:
-            imr_chart.six_point_trend_rule()
-        if rule3_chk:
-            imr_chart.night_point_rule()
-             
-        st.pyplot(imr_chart.fig_i_mr_chart)      
+
+       with tab:
+           imr_chart=I_mr_chart(groups,all_m_name[i],selected_rv,set_plot_backend)  #監控機台參數的I-MR Chart
+           if rule1_chk:
+               imr_chart.ooc_rule()
+           if rule2_chk:
+                imr_chart.six_point_trend_rule()
+           if rule3_chk:
+                imr_chart.night_point_rule()
+                
+           if  set_plot_backend=="Matplotlib":       #切換圖表繪圖後端                    
+               st.pyplot(imr_chart.fig_i_mr_chart)    
+               
+           else:           #圖表繪圖後端設定為Plotly
+               with st.container(border=True):
+                   st.plotly_chart(imr_chart.fig_i_mr_chart,use_container_width=True) 
    
 st.divider()
+
 #Yield Boxplot的畫面(中間-上)
 mid_1_l_col,mid_1_r_col=st.columns(2)    
 with mid_1_l_col:          #Yield Boxplot
     st.subheader("📦Yield Boxplot")
-    
-    fig_boxplot=boxplot_chart(groups)
 
-    st.pyplot(fig_boxplot) 
+    if  set_plot_backend=="Matplotlib":       #切換圖表繪圖後端       
+        fig_boxplot=boxplot_chart(process_raw_data,set_plot_backend)
+
+        st.pyplot(fig_boxplot) 
+        
+    else:           #圖表繪圖後端設定為Plotly
+        fig_boxplot=boxplot_chart(process_raw_data,set_plot_backend)
+        
+        with st.container(border=True):
+            st.plotly_chart(fig_boxplot,use_container_width=True) 
     
 with mid_1_r_col:          #Machine Statistics Overview：平均、標準差、上界、下界
-    st.markdown("#### 🌟Machine Yield Statistics Overview")
-    st.dataframe(m_yield_stats(groups)) #佔滿這個欄位的寬度
+    st.subheader("🌟M/C Yield Stats Overview")
+    st.dataframe(m_yield_stats(groups).style.format("{:.2f}",subset=["Mean","Std Dev","上界","下界"]), #數據四捨五入到小數點後第二位
+                 use_container_width=True)  #佔滿這個欄位的寬度
     
 
 #Yield Boxplot的畫面(中間-下)
@@ -463,11 +551,12 @@ mid_2_l_col,mid_2_mid_col,mid_2_r_col=st.columns(3)
 with mid_2_l_col:  #顯示異常Lot
     st.subheader("🔥Outlier")
     lot_outlier=outlier_detection(process_raw_data)
-    if lot_outlier.empty and  m_selected_name!=[]:      #沒有outliter時，使用
-        st.dataframe(lot_outlier[["Machine","Defect","Yield"]]) #佔滿這個欄位的寬度
+    
+    if lot_outlier.empty and  m_selected_name!=[]:      #沒有outliter時，使用，避免出錯
+        st.dataframe(lot_outlier[["Machine","Defect","Yield"]])
         st.info("目前無異常 Lot")
     else:
-        st.dataframe(lot_outlier[["Machine","Defect","Yield"]]) #佔滿這個欄位的寬度    
+        st.dataframe(lot_outlier[["Machine","Defect","Yield"]])    
 
 with mid_2_mid_col:  #顯示所有機差比較(Yield)
     st.markdown("#### 🔍所有機差比較(Yield)")
@@ -479,7 +568,8 @@ with mid_2_r_col:  #所有機台穩定度(Yield
     st.info(stabiliy_assessment(groups)["最不穩定機台"])    
 
         
-st.divider()        
+st.divider()    
+    
 #迴歸分析的畫面(下面)
 down_l_col,down_r_col=st.columns(2) 
 with down_l_col:
@@ -489,8 +579,8 @@ with down_l_col:
     for i,tab in enumerate(tabs):   #每一個頁籤的內容   
         with tab:     
             corr_matrix=corr(groups, all_m_name[i], all_x, rv) #相關係數矩陣
-            st.dataframe(corr_matrix)  #佔滿這個欄位的寬度
-
+            st.dataframe(corr_matrix.style.format("{:.3f}",subset=all_x+[rv]),     #數據四捨五入到小數點後第三位
+                         use_container_width=True)  #佔滿這個欄位的寬度
 
 with down_r_col:
     st.subheader("🧬全子集迴歸")
@@ -499,7 +589,8 @@ with down_r_col:
     for i,tab in enumerate(tabs):   #每一個頁籤的內容   
         with tab:     
             model_matrics_list=subset_regression(groups,all_m_name[i],rv,all_x) #模型統計指標清單
-            st.dataframe(model_matrics_list) #佔滿這個欄位的寬度
+            st.dataframe(model_matrics_list.style.format("{:.3f}",subset=["RSE","adj. R-squared"]),  #數據四捨五入到小數點後第三位
+                         use_container_width=True)  
            
            
     
