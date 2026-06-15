@@ -32,7 +32,7 @@
 ## 🛠️ 技術棧 (Tech Stack)
 - **程式語言**: Python 3.12
 - **網頁框架**: Streamlit
-- **核心套件**: NumPy, Pandas, SciPy, Statsmodels, scikit-posthocs, Matplotlib 
+- **核心套件**: NumPy, Pandas, SciPy, Statsmodels, scikit-posthocs, Matplotlib, Plotly 
 - **雲端部署**: Streamlit Community Cloud
 
 ## 📂 檔案結構說明
