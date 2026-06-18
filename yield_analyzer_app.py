@@ -1,8 +1,14 @@
-# -*- coding: utf-8 -*-
 """
-Spyder Editor
+Project:半導體試產良率分析系統
+File:yield_analyzer_app.py
 
-This is a temporary script file.
+Description:
+    半導體試產良率分析專案。執行製程數據讀取、SPC 管制圖監控、箱形圖與機差統計檢定、
+    與多元線性迴歸與特徵篩選。
+
+Author:Chen YungYu
+Copyright: © 2026 Chen YungYu. All rights reserved.
+Proprietary and Confidential.
 """
 
 import pandas as pd
@@ -11,7 +17,6 @@ import scipy.stats as stats
 import scikit_posthocs as sp   #事後檢定用
 import matplotlib.pyplot as plt
 import streamlit as st
-
 
 from statsmodels.formula.api import ols	
 import statsmodels.stats.anova as anova 
@@ -22,7 +27,7 @@ import plotly.graph_objects as go  #要增加圖片的互動體驗
 #pio.renderers.default = 'browser'
   
 
-#解決圖片亂碼問題，Windows使用微軟正黑體、Linux系統使用思源黑體
+#解決Matplotlib圖片亂碼問題，Windows使用微軟正黑體、Linux系統使用思源黑體
 plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'Noto Sans CJK TC', 'DejaVu Sans']  
 plt.rcParams['axes.unicode_minus'] = False
 
@@ -47,10 +52,10 @@ set_plot_backend="Plotly"
 
 
 #網頁主題設定
-st.set_page_config(page_title="半導體製程Pilot Run Test",layout="wide")
+st.set_page_config(page_title="半導體試產良率分析系統",layout="wide")
 
+# %% 控制面板 ----------------------------------------------------
 
-#=======================控制面板========================
 with st.sidebar:    
     st.title("⚙️控制面板")
     
@@ -65,8 +70,7 @@ with st.sidebar:
     selected_rv=st.selectbox("請選擇一個監控的製程參數",options=all_x)
            
 
-
-#=======================資料處理========================        
+# %% 資料處理 ----------------------------------------------------   
    
 #I_MR版的SPC類別物件，用來產生I-MR Chart
 class I_mr_chart():
@@ -161,8 +165,7 @@ class I_mr_chart():
         """
         1.檢查是否有Out of Control limit的點，並在圖表標上紅色 
         2.具有圖表繪圖後端切換功能
-        """
-        
+        """     
         normal_condition=(self.ooc[self.rv]<=self.ucl) & (self.ooc[self.rv]>=self.lcl)  #control limit內的規則
         self.ooc.loc[:,"OOC"]=self.ooc.loc[:,self.rv]
         self.ooc.loc[normal_condition,"OOC"]=np.nan  #滿足control limit的點其值改成nan
@@ -176,6 +179,7 @@ class I_mr_chart():
             self.fig_i_mr_chart.add_scatter(x=self.ooc.index,y=self.ooc["OOC"],mode='markers',name="OOC",marker=dict(size=9,color="#EF4444",symbol="square"))  #顏色：警示紅
                 
         return None
+
         
     #檢查是否有連續六點上升(下降)，並在圖表標上紅色(所有點都標)
     def six_point_trend_rule(self):    
@@ -211,6 +215,7 @@ class I_mr_chart():
                     self.fig_i_mr_chart.add_scatter(x=self.ooc.index,y=self.ooc[x],mode='markers',name="6pts Trend",marker=dict(size=9,color="#95A5A6",symbol="square"))  #標上連續六點上升(下降)的點，顏色：混泥土色
                 
         return None
+ 
     
     #檢查是否有連續9點在上邊(下邊)，並在圖表標上紅色(所有點都標)
     def night_point_rule(self):
@@ -243,8 +248,7 @@ class I_mr_chart():
                 if x!="連續9點在下邊":    #只讓圖例只顯示一個
                     self.fig_i_mr_chart.add_scatter(x=self.ooc.index,y=self.ooc[x],mode='markers',name="9pts One-side",marker=dict(color="#EF4444",symbol="x"),showlegend=False) #標上連續9點在上邊(下邊)的點，不顯示圖例，顏色：警示紅
                 else:
-                    self.fig_i_mr_chart.add_scatter(x=self.ooc.index,y=self.ooc[x],mode='markers',name="9pts One-side",marker=dict(color="#EF4444",symbol="x"))  #標上連續9點在上邊(下邊)的點，顏色：警示紅               
-  
+                    self.fig_i_mr_chart.add_scatter(x=self.ooc.index,y=self.ooc[x],mode='markers',name="9pts One-side",marker=dict(color="#EF4444",symbol="x"))  #標上連續9點在上邊(下邊)的點，顏色：警示紅                
         return None
 
 
@@ -253,8 +257,7 @@ def boxplot_chart(process_raw_data,set_plot_backend):
     """
     1.畫出所有機台的Boxplot
     2.具有圖表繪圖後端切換功能
-    """
-        
+    """        
     if  set_plot_backend=="Matplotlib":       #切換圖表繪圖後端   
         m_yield_data={}      #使用字典儲存所有機台Yield分組資料，供Matplotlib Boxplot使用
         for x in all_m_name:
@@ -286,14 +289,13 @@ def boxplot_chart(process_raw_data,set_plot_backend):
                             width=0.5)       #箱子佔自己的格子50%
         
     return fig_boxplot
-#%%
+
 
 #計算各機台的統計量：平均、標準差、上界、下界。主畫面中間顯示用
 def m_yield_stats(groups):
     """
     計算各機台的統計量：平均、標準差、上界、下界，並產生一個DataFrame表格
-    """
-    
+    """    
     m_yield_stat_results=groups["Yield"].agg(["mean","std"])
     m_yield_stat_results.columns=["Mean","Std Dev"]  
     
@@ -315,8 +317,7 @@ def m_yield_stats(groups):
 def outlier_detection(process_raw_data):
     """
     找出所有機台可能的異常Lot
-    """
-    
+    """   
     groups=process_raw_data.groupby("Machine")
     q1=groups["Yield"].transform(lambda x:x.quantile(0.25)) #找出Box Plot的Q1
     q3=groups["Yield"].transform(lambda x:x.quantile(0.75)) #找出Box Plot的Q3
@@ -328,8 +329,6 @@ def outlier_detection(process_raw_data):
                                        (process_raw_data["Yield"]<lower_fence)
                                        ]
     return yield_outlier
-
-
 
 
 #判斷機台是否有差異
@@ -348,8 +347,7 @@ def machine_comparison(process_raw_data,groups,all_m_name):
     kruskal_results.loc["kruskal_results","P-value"]=p_value
         
     kruskal_results.loc["kruskal_results","顯著性差異"]="有" if kruskal_results.loc["kruskal_results","P-value"] < 0.05 else "無"
-  
-    
+     
     if kruskal_results.loc["kruskal_results","顯著性差異"]=="無":
         m_comparison_result=f"🟢不同機台間的平均Yield無顯著差異(p-value = {p_value:.4f}>=0.05)" 
     else:   #有顯著性差異，需要找出有差異的機台
@@ -408,8 +406,6 @@ def stabiliy_assessment(groups):
     return m_stabiliy      
 
 
-
-
 #相關係數(看自變數之間與自變數與因變數的)
 def corr(groups,selected_m_name,all_x,rv):    
     """
@@ -429,10 +425,7 @@ def corr(groups,selected_m_name,all_x,rv):
     corr_matrix["OLS P>|t|"]=temp_list
     
     return corr_matrix
-    
-    
-
-
+        
 
 #使用迴歸分析，找出機台樣本估計模型SRF
 def srf(groups,selected_m_name,rv,selected_x):
@@ -474,8 +467,8 @@ def subset_regression(groups,selected_m_name,rv,all_x):
     return model_metrics_list
 
 
+# %% 主畫面 ----------------------------------------------------
 
-#=======================主畫面===========================
 #I-MR Chart 的畫面(最上)
 top_r_col,top_l_col=st.columns(2) 
 with top_r_col:             
